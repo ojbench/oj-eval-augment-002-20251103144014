@@ -323,6 +323,82 @@ int2048 operator-(int2048 a, const int2048 &b) {
     return minus(a, b);
 }
 
+// FFT-based multiplication
+namespace {
+    const double PI = acos(-1.0);
+
+    void fft(std::vector<std::complex<double>> &a, bool invert) {
+        int n = a.size();
+        if (n == 1) return;
+
+        for (int i = 1, j = 0; i < n; i++) {
+            int bit = n >> 1;
+            for (; j & bit; bit >>= 1) {
+                j ^= bit;
+            }
+            j ^= bit;
+            if (i < j) std::swap(a[i], a[j]);
+        }
+
+        for (int len = 2; len <= n; len <<= 1) {
+            double ang = 2 * PI / len * (invert ? -1 : 1);
+            std::complex<double> wlen(cos(ang), sin(ang));
+            for (int i = 0; i < n; i += len) {
+                std::complex<double> w(1);
+                for (int j = 0; j < len / 2; j++) {
+                    std::complex<double> u = a[i + j];
+                    std::complex<double> v = a[i + j + len / 2] * w;
+                    a[i + j] = u + v;
+                    a[i + j + len / 2] = u - v;
+                    w *= wlen;
+                }
+            }
+        }
+
+        if (invert) {
+            for (auto &x : a) {
+                x /= n;
+            }
+        }
+    }
+
+    std::vector<int> multiplyFFT(const std::vector<int> &a, const std::vector<int> &b) {
+        std::vector<std::complex<double>> fa(a.begin(), a.end());
+        std::vector<std::complex<double>> fb(b.begin(), b.end());
+
+        int n = 1;
+        while (n < (int)(a.size() + b.size())) {
+            n <<= 1;
+        }
+        fa.resize(n);
+        fb.resize(n);
+
+        fft(fa, false);
+        fft(fb, false);
+
+        for (int i = 0; i < n; i++) {
+            fa[i] *= fb[i];
+        }
+
+        fft(fa, true);
+
+        std::vector<int> result(n);
+        long long carry = 0;
+        for (int i = 0; i < n; i++) {
+            long long val = (long long)(fa[i].real() + 0.5) + carry;
+            result[i] = val % 10000;
+            carry = val / 10000;
+        }
+
+        while (carry) {
+            result.push_back(carry % 10000);
+            carry /= 10000;
+        }
+
+        return result;
+    }
+}
+
 // Multiplication
 int2048 &int2048::operator*=(const int2048 &other) {
     *this = *this * other;
@@ -330,22 +406,39 @@ int2048 &int2048::operator*=(const int2048 &other) {
 }
 
 int2048 operator*(int2048 a, const int2048 &b) {
-    int2048 result;
-    result.digits.clear();
-    result.digits.resize(a.digits.size() + b.digits.size(), 0);
+    // Use naive multiplication for small numbers
+    const int THRESHOLD = 100;
 
-    for (size_t i = 0; i < a.digits.size(); i++) {
-        long long carry = 0;
-        for (size_t j = 0; j < b.digits.size() || carry; j++) {
-            long long cur = result.digits[i + j] + carry;
-            if (j < b.digits.size()) {
-                cur += (long long)a.digits[i] * b.digits[j];
+    if (a.digits.size() < THRESHOLD && b.digits.size() < THRESHOLD) {
+        int2048 result;
+        result.digits.clear();
+        result.digits.resize(a.digits.size() + b.digits.size(), 0);
+
+        for (size_t i = 0; i < a.digits.size(); i++) {
+            long long carry = 0;
+            for (size_t j = 0; j < b.digits.size() || carry; j++) {
+                long long cur = result.digits[i + j] + carry;
+                if (j < b.digits.size()) {
+                    cur += (long long)a.digits[i] * b.digits[j];
+                }
+                result.digits[i + j] = cur % 10000;
+                carry = cur / 10000;
             }
-            result.digits[i + j] = cur % 10000;
-            carry = cur / 10000;
         }
+
+        removeLeadingZeros(result.digits);
+        result.sign = (a.sign != b.sign);
+
+        if (result.digits.size() == 1 && result.digits[0] == 0) {
+            result.sign = false;
+        }
+
+        return result;
     }
 
+    // Use FFT for large numbers
+    int2048 result;
+    result.digits = multiplyFFT(a.digits, b.digits);
     removeLeadingZeros(result.digits);
     result.sign = (a.sign != b.sign);
 
