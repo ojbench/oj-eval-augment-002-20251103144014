@@ -18,8 +18,24 @@
 // Do not use "using namespace std;"
 
 namespace sjtu {
+
+// Forward declarations
+class int2048;
+void removeLeadingZeros(std::vector<int> &);
+int compareAbs(const int2048 &, const int2048 &);
+int2048 addAbs(const int2048 &, const int2048 &);
+int2048 subAbs(const int2048 &, const int2048 &);
+
 class int2048 {
-  // todo
+private:
+  bool sign; // true for negative, false for non-negative
+  std::vector<int> digits; // base 10000, little-endian
+
+  friend void removeLeadingZeros(std::vector<int> &);
+  friend int compareAbs(const int2048 &, const int2048 &);
+  friend int2048 addAbs(const int2048 &, const int2048 &);
+  friend int2048 subAbs(const int2048 &, const int2048 &);
+
 public:
   // Constructors
   int2048();
