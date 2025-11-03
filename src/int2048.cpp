@@ -264,11 +264,19 @@ namespace {
     }
 
     std::vector<int> multiplyFFT(const std::vector<int> &a, const std::vector<int> &b) {
-        std::vector<std::complex<double>> fa(a.begin(), a.end());
-        std::vector<std::complex<double>> fb(b.begin(), b.end());
+        // Split each base-10000 digit into two base-100 digits for better precision
+        std::vector<std::complex<double>> fa, fb;
+        for (int x : a) {
+            fa.push_back(x % 100);
+            fa.push_back(x / 100);
+        }
+        for (int x : b) {
+            fb.push_back(x % 100);
+            fb.push_back(x / 100);
+        }
 
         int n = 1;
-        while (n < (int)(a.size() + b.size())) {
+        while (n < (int)(fa.size() + fb.size())) {
             n <<= 1;
         }
         fa.resize(n);
@@ -283,11 +291,17 @@ namespace {
 
         fft(fa, true);
 
-        std::vector<int> result(n);
-        long long carry = 0;
+        std::vector<long long> temp(n);
         for (int i = 0; i < n; i++) {
-            long long val = (long long)(fa[i].real() + 0.5) + carry;
-            result[i] = val % 10000;
+            temp[i] = (long long)(fa[i].real() + 0.5);
+        }
+
+        // Combine base-100 digits back to base-10000
+        std::vector<int> result;
+        long long carry = 0;
+        for (int i = 0; i < n; i += 2) {
+            long long val = temp[i] + (i + 1 < n ? temp[i + 1] * 100 : 0) + carry;
+            result.push_back(val % 10000);
             carry = val / 10000;
         }
 
